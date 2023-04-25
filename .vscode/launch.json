@@ -1,0 +1,36 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    // Visual Studio Code launch.json for XMC 2Go development board
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug",
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${workspaceFolder}/build/task3",
+        "args": [],
+        "stopAtEntry": false,
+        "cwd": "${workspaceFolder}",
+        "environment": [],
+        "externalConsole": false,
+        "MIMode": "gdb",
+        "miDebuggerArgs": "handle signal SIGUSR1 nostop",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          },
+          {
+            "description": "Switch off SIGUSR1 handling",
+            "text": "handle SIGUSR1 nostop noprint pass",
+            "ignoreFailures": true           
+          }
+        ],
+        "preLaunchTask": "Build Target",
+        "miDebuggerPath": "/usr/bin/gdb"
+      }
+    ]
+}
