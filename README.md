@@ -15,15 +15,16 @@ Message input format:
 |-------------------------------------------|
 | Type | Length |           Payload         |
 |-------------------------------------------| 
-|                    |   data   |  CRC-32   |
+|               |   data  |    CRC-32       |
 |-------------------------------------------| 
 ```
 - message leaded by keyword `mess=`
- 
-Mask input format
+
+Mask input format:
 - 32 bits value 
 - mask leaded by keyword `mask=`
- Output information format (for each message):
+
+Output information format (for each message):
 - message type
 - initial message length
 - initial message data bytes
@@ -31,7 +32,8 @@ Mask input format
 - modified message length
 - modified message data bytes with mask
 - modified CRC-32
- Important notes:
+  
+Important notes:
 - input file name - data_in.txt
 - output file name - data_out.txt
 - input and output files stored in the same directory as the program itself
