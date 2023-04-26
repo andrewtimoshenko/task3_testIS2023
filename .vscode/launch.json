@@ -12,7 +12,7 @@
         "program": "${workspaceFolder}/build/task3",
         "args": [],
         "stopAtEntry": false,
-        "cwd": "${workspaceFolder}",
+        "cwd": "${workspaceFolder}/build",
         "environment": [],
         "externalConsole": false,
         "MIMode": "gdb",

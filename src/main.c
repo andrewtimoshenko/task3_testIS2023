@@ -1,7 +1,10 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <errno.h>
+#include <zlib.h>
 
 #define INPUT_FILE_NAME "data_in.txt"
 #define OUTPUT_FILE_NAME "data_out.txt"
@@ -25,7 +28,7 @@ typedef struct {
     uint8_t payload[255]; // 256 bytes
     uint8_t data[252];    // 252 bytes
     uint32_t crc32;       // 4 bytes
-} input_msg_t;
+} __attribute__((packed)) input_msg_t;
 
 /*
     Output information format (for each message):
@@ -69,31 +72,36 @@ int main(){
         .mask = 0xDEADBEEF
     };
 
+    const char* data = "Hello, world!";
+    uLong crc = crc32_z(0xFFFFFFFF, (const Bytef*)data, strlen(data));
+    crc = crc ^ 0xFFFFFFFF;  // XOR the final CRC with 0xFFFFFFFF
+    printf("CRC32 checksum: 0x%lx\n", crc);
+
     memset(&pair.input_msg.payload, 0, sizeof(pair.input_msg.payload));
     memset(&pair.input_msg.data, 0, sizeof(pair.input_msg.data));
 
-    serialize_and_write_pair("pair", &pair);
+    // serialize_and_write_pair("data_in.txt", &pair);
 
-    // FILE *fd_out = fopen(OUTPUT_FILE_NAME, "a");
-    // if (fd_out == NULL) {
-    //     printf("Error opening %s file\n", OUTPUT_FILE_NAME);
-    //     return 1;
-    // }
+    FILE *fd_out = fopen(OUTPUT_FILE_NAME, "a");
+    if (fd_out == NULL) {
+        printf("Error opening %s file\n", OUTPUT_FILE_NAME);
+        return 1;
+    }
 
-    // FILE *fd_in = fopen(INPUT_FILE_NAME, "r");
-    // if (fd_in == NULL) {
-    //     fprintf(fd_out, "Error opening %s file\n", INPUT_FILE_NAME);
-    //     return 1;
-    // }
+    FILE *fd_in = fopen(INPUT_FILE_NAME, "r");
+    if (fd_in == NULL) {
+        fprintf(fd_out, "Error opening %s file\n", INPUT_FILE_NAME);
+        return 1;
+    }
 
-    // pair_t *pairs = NULL;
-    // size_t pairs_num = 0;
+    pair_t *pairs = NULL;
+    size_t pairs_num = 0;
 
-    // ret = extract_pairs(fd_in, pairs, &pairs_num);
-    // if(ret != 0){
-    //     fprintf(fd_out, "Pairs extracting error\n");
-    //     return 1;
-    // }
+    ret = extract_pairs(fd_in, pairs, &pairs_num);
+    if(ret != 0){
+        fprintf(fd_out, "Pairs extracting error\n");
+        return 1;
+    }
     
     // output_msg_t *output = NULL;
     // size_t output_num = 0;
@@ -110,13 +118,148 @@ int main(){
     //     return 1;
     // }
 
+    fclose(fd_in);
+    fclose(fd_out);
+
     return 0;
 }
 
 //
 int extract_pairs(FILE *fd, pair_t *pairs, size_t *pairs_num){
 
+    bool in_message = false;
+    const size_t bufsize = 2048;
+
+    uint8_t *buffer = (uint8_t *) malloc(bufsize);
+
+    if(fd == NULL || buffer == NULL){
+        return 1;
+    }
+
+    memset(buffer, 0, bufsize);
+
+    ssize_t read_bytes = 0;
+
+    // Here it's supposed buffer has enough size
+    while ((read_bytes = fread(buffer, 1, sizeof(pair_t) + strlen(MSG_PREFIX) + strlen(MASK_PREFIX), fd)) != 0)
+    {
+        if (read_bytes == -1) {
+            printf("%s\n", strerror(errno));
+            return 1;
+        }
+
+        uint8_t *msg_ptr = NULL;
+        uint8_t *mask_ptr = NULL;
+
+        for(int i = 0; i < read_bytes; i++){
+            if(buffer[i] == MSG_PREFIX[0]){
+                if(memcmp(&buffer[i], MSG_PREFIX, strlen(MSG_PREFIX)) == 0){
+                    msg_ptr = &buffer[i] + strlen(MSG_PREFIX);
+                }
+            }
+            if(buffer[i] == MASK_PREFIX[0]){
+                if(memcmp(&buffer[i], MASK_PREFIX, strlen(MASK_PREFIX)) == 0){
+                    mask_ptr = &buffer[i] + strlen(MASK_PREFIX);
+                }
+            }
+        }
+
+        if(*pairs_num == 0){
+            pairs = (pair_t *) malloc(sizeof(pair_t));
+            if(pairs == NULL){
+                return 1;
+           }
+        } else{
+            realloc(pairs, *pairs_num * sizeof(pair_t));
+        }
+
+        pair_t *curr_pair = pairs + *pairs_num * sizeof(pair_t);
+        curr_pair->mask = 0; 
+        memcpy(&curr_pair->input_msg, msg_ptr, sizeof(input_msg_t));
+        curr_pair->mask = *(uint32_t *)mask_ptr;
+        (*pairs_num)++;
+    }
+
     return 0;
+}
+
+void DumpHex(const void* data, size_t size) {
+    
+    uint16_t curr_len;
+    int n;
+    char buff[2048];
+
+    memset(buff, 0, sizeof(buff));
+    
+	char ascii[17];
+	size_t i, j;
+	ascii[16] = '\0';
+    n = snprintf(buff, sizeof(buff), "\n");
+    if (n<0){
+        printf("snprnt_ERR_1\n");
+        return;
+    }
+	for (i = 0; i < size; ++i) {
+        curr_len = strlen(buff);
+		n = snprintf(buff + curr_len, sizeof(buff) - curr_len, "%02X ", ((unsigned char*)data)[i]);
+        if (n<0){
+            printf("snprnt_ERR_2\n");
+            return;
+        }
+        if (((unsigned char*)data)[i] >= ' ' && ((unsigned char*)data)[i] <= '~') {
+			ascii[i % 16] = ((unsigned char*)data)[i];
+		} else {
+			ascii[i % 16] = '.';
+		}
+		if ((i+1) % 8 == 0 || i+1 == size) {
+            curr_len = strlen(buff);
+            n = snprintf(buff + curr_len, sizeof(buff) - curr_len, " ");
+            if (n<0){
+                printf("snprnt_ERR_3\n");
+                return;
+            }
+			if ((i+1) % 16 == 0) {
+                curr_len = strlen(buff);
+                n = snprintf(buff + curr_len, sizeof(buff) - curr_len, "|  %s \n", ascii);
+                if (n<0){
+                    printf("snprnt_ERR_4\n");
+                    return;
+                }
+			} else if (i+1 == size) {
+				ascii[(i+1) % 16] = '\0';
+				if ((i+1) % 16 <= 8) {
+                    curr_len = strlen(buff);
+                    n = snprintf(buff + curr_len, sizeof(buff) - curr_len, " ");
+                    if (n<0){
+                        printf("snprnt_ERR_5\n");
+                        return;
+                    }
+				}
+				for (j = (i+1) % 16; j < 16; ++j) {
+                    curr_len = strlen(buff);
+                    n = snprintf(buff + curr_len, sizeof(buff) - curr_len, "   ");
+                    if (n<0){
+                        printf("snprnt_ERR_6\n");
+                        return;
+                    }
+				}
+                curr_len = strlen(buff);
+                n = snprintf(buff + curr_len, sizeof(buff) - curr_len, "|  %s \n", ascii);
+                if (n<0){
+                    printf("snprnt_ERR_7\n");
+                    return;
+                }
+			}
+		}
+	}
+    curr_len = strlen(buff);
+    n = snprintf(buff + curr_len, sizeof(buff) - curr_len, "\n");
+    if (n<0){
+        printf("snprnt_ERR_8\n");
+        return;
+    }
+    buff[sizeof(buff) - 1] = 0;
+    printf("%s", buff);
 }
 
 //
