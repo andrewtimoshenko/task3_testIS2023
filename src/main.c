@@ -57,6 +57,10 @@ typedef struct {
 } __attribute__((packed)) pair_t;
 
 
+int extract_pairs(FILE *fd, pair_t *pairs, size_t *pairs_num);
+int process_pairs(pair_t *pairs, size_t pairs_num, output_msg_t *out, size_t *output_msg_num);
+int save_outputs(FILE *fd_out, output_msg_t *out_msgs, size_t out_msgs_num);
+
 int main(){
 
     int ret = 0;
@@ -72,15 +76,16 @@ int main(){
         .mask = 0xDEADBEEF
     };
 
-    const char* data = "Hello, world!";
-    uLong crc = crc32_z(0xFFFFFFFF, (const Bytef*)data, strlen(data));
-    crc = crc ^ 0xFFFFFFFF;  // XOR the final CRC with 0xFFFFFFFF
-    printf("CRC32 checksum: 0x%lx\n", crc);
+    /* CRC32 calculating
+    
+        const char* data = "Hello, world!";
+        uLong crc = crc32_z(0xFFFFFFFF, (const Bytef*)data, strlen(data));
+        crc = crc ^ 0xFFFFFFFF;  // XOR the final CRC with 0xFFFFFFFF
+        printf("CRC32 checksum: 0x%lx\n", crc);
+    */
 
     memset(&pair.input_msg.payload, 0, sizeof(pair.input_msg.payload));
     memset(&pair.input_msg.data, 0, sizeof(pair.input_msg.data));
-
-    // serialize_and_write_pair("data_in.txt", &pair);
 
     FILE *fd_out = fopen(OUTPUT_FILE_NAME, "a");
     if (fd_out == NULL) {
@@ -103,20 +108,20 @@ int main(){
         return 1;
     }
     
-    // output_msg_t *output = NULL;
-    // size_t output_num = 0;
+    output_msg_t *output = NULL;
+    size_t output_num = 0;
 
-    // ret = process_pairs(pairs, pairs_num, output, &output_num);
-    // if(ret != 0){
-    //     fprintf(fd_out, "Pairs processing error\n");
-    //     return 1;
-    // }
+    ret = process_pairs(pairs, pairs_num, output, &output_num);
+    if(ret != 0){
+        fprintf(fd_out, "Pairs processing error\n");
+        return 1;
+    }
 
-    // ret = save_outputs(fd_out, output, output_num);
-    // if(ret != 0){
-    //     fprintf(fd_out, "Saving outputs error\n");
-    //     return 1;
-    // }
+    ret = save_outputs(fd_out, output, output_num);
+    if(ret != 0){
+        fprintf(fd_out, "Saving outputs error\n");
+        return 1;
+    }
 
     fclose(fd_in);
     fclose(fd_out);
@@ -170,7 +175,10 @@ int extract_pairs(FILE *fd, pair_t *pairs, size_t *pairs_num){
                 return 1;
            }
         } else{
-            realloc(pairs, *pairs_num * sizeof(pair_t));
+            pairs = realloc(pairs, *pairs_num * sizeof(pair_t));
+            if(pairs == NULL){
+                return 1;
+            }
         }
 
         pair_t *curr_pair = pairs + *pairs_num * sizeof(pair_t);
@@ -299,7 +307,7 @@ int make_pair(pair_t *out){
     
 }
 
-//
+// Process pairs
 int process_pairs(pair_t *pairs, size_t pairs_num, output_msg_t *out, size_t *output_msg_num){
     
     if(pairs == NULL) {
@@ -309,6 +317,8 @@ int process_pairs(pair_t *pairs, size_t pairs_num, output_msg_t *out, size_t *ou
     for(int i = 0; i < pairs_num; i++){
 
     }
+
+    // TOOD: Free allocated memory
 
     return 0;
 }
